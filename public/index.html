@@ -3,83 +3,511 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تماس صوتی دو کاربر</title>
-    <link rel="stylesheet" href="style.css">
+    <title>تماس صوتی</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Tahoma; 
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #333; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 20px; 
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+        .header h1 { color: #2c3e50; margin-bottom: 10px; }
+        .user-info { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #2c3e50; }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            font-size: 16px; 
+        }
+        input:focus { outline: none; border-color: #667eea; }
+        .button-group { display: flex; gap: 10px; margin: 20px 0; }
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            flex: 1;
+            transition: all 0.3s;
+        }
+        .btn-call { background: #4CAF50; color: white; }
+        .btn-end { background: #f44336; color: white; }
+        .btn-success { background: #4CAF50; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .btn:not(:disabled):hover { transform: translateY(-2px); }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .status-ready { background: #d4edda; color: #155724; }
+        .status-calling { background: #fff3cd; color: #856404; }
+        .status-connected { background: #d1ecf1; color: #0c5460; }
+        .incoming-call {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .call-alert {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 90%;
+            width: 400px;
+            border: 3px solid #4CAF50;
+        }
+        .alert-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .users-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .user-item {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .user-item:hover { background: #667eea; color: white; }
+        audio { width: 100%; margin: 15px 0; }
+        @media (max-width: 600px) {
+            .container { padding: 15px; }
+            .button-group { flex-direction: column; }
+            .btn { width: 100%; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <!-- هدر -->
-        <header class="header">
+        <div class="header">
             <h1>🎧 تماس صوتی دو کاربر</h1>
             <div class="user-info">
-                <span>شناسه شما: </span>
+                <span>شناسه شما:</span>
                 <strong id="userId">...</strong>
                 <button id="copyId" class="btn btn-secondary">📋 کپی</button>
             </div>
-        </header>
+        </div>
 
-        <!-- بخش اصلی -->
-        <main class="main-content">
-            <!-- کنترل‌های تماس -->
-            <section class="call-section">
-                <div class="input-group">
-                    <label for="callerName">نام شما:</label>
-                    <input type="text" id="callerName" placeholder="مثلاً: علی" value="کاربر">
-                </div>
-                
-                <div class="input-group">
-                    <label for="targetUser">شناسه کاربر مقابل:</label>
-                    <input type="text" id="targetUser" placeholder="شناسه کاربر را وارد کنید">
-                </div>
+        <div class="input-group">
+            <label for="callerName">نام شما:</label>
+            <input type="text" id="callerName" placeholder="مثلاً: علی" value="کاربر">
+        </div>
+        
+        <div class="input-group">
+            <label for="targetUser">شناسه کاربر مقابل:</label>
+            <input type="text" id="targetUser" placeholder="شناسه کاربر را وارد کنید">
+        </div>
 
-                <div class="button-group">
-                    <button id="startCall" class="btn btn-call">📞 شروع تماس</button>
-                    <button id="endCall" class="btn btn-end" disabled>❌ پایان تماس</button>
-                </div>
-            </section>
+        <div class="button-group">
+            <button id="startCall" class="btn btn-call">📞 شروع تماس</button>
+            <button id="endCall" class="btn btn-end" disabled>❌ پایان تماس</button>
+        </div>
 
-            <!-- وضعیت -->
-            <section class="status-section">
-                <div id="callStatus" class="status status-ready">
-                    🟢 آماده برای تماس
-                </div>
-                
-                <!-- هشدار تماس دریافتی -->
-                <div id="incomingCall" class="incoming-call" style="display: none;">
-                    <div class="call-alert">
-                        <h3>📞 تماس دریافتی</h3>
-                        <p id="callerInfo">از: </p>
-                        <div class="alert-buttons">
-                            <button id="acceptCall" class="btn btn-success">✅ پذیرش</button>
-                            <button id="rejectCall" class="btn btn-danger">❌ رد</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
+        <div id="callStatus" class="status status-ready">
+            🟢 آماده برای تماس
+        </div>
 
-            <!-- کاربران آنلاین -->
-            <section class="users-section">
-                <h3>👥 کاربران آنلاین:</h3>
-                <div id="onlineUsers" class="users-list">
-                    <div class="empty-state">در حال دریافت لیست...</div>
-                </div>
-            </section>
+        <div id="onlineUsersSection" style="display: none;">
+            <h3>👥 کاربران آنلاین:</h3>
+            <div id="onlineUsers" class="users-list"></div>
+        </div>
 
-            <!-- پلیر صدا -->
-            <section class="audio-section">
-                <audio id="remoteAudio" autoplay controls style="display: none;"></audio>
-                <div class="audio-visualizer">
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                </div>
-            </section>
-        </main>
+        <audio id="remoteAudio" autoplay controls style="display: none;"></audio>
+    </div>
+
+    <div id="incomingCall" class="incoming-call">
+        <div class="call-alert">
+            <h3>📞 تماس دریافتی</h3>
+            <p id="callerInfo">از: </p>
+            <div class="alert-buttons">
+                <button id="acceptCall" class="btn btn-success">✅ پذیرش</button>
+                <button id="rejectCall" class="btn btn-danger">❌ رد</button>
+            </div>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
+    <script>
+        class VoiceChat {
+            constructor() {
+                this.socket = io();
+                this.localStream = null;
+                this.remoteStream = null;
+                this.peerConnection = null;
+                this.currentCall = null;
+                this.isInCall = false;
+                
+                this.init();
+            }
+
+            init() {
+                this.initElements();
+                this.initSocket();
+                this.requestMicrophone();
+            }
+
+            initElements() {
+                this.userIdElement = document.getElementById('userId');
+                this.targetUserInput = document.getElementById('targetUser');
+                this.callerNameInput = document.getElementById('callerName');
+                this.startCallButton = document.getElementById('startCall');
+                this.endCallButton = document.getElementById('endCall');
+                this.copyIdButton = document.getElementById('copyId');
+                this.callStatusElement = document.getElementById('callStatus');
+                this.onlineUsersList = document.getElementById('onlineUsers');
+                this.onlineUsersSection = document.getElementById('onlineUsersSection');
+                this.incomingCallElement = document.getElementById('incomingCall');
+                this.acceptCallButton = document.getElementById('acceptCall');
+                this.rejectCallButton = document.getElementById('rejectCall');
+                this.remoteAudio = document.getElementById('remoteAudio');
+                this.callerInfoElement = document.getElementById('callerInfo');
+
+                this.startCallButton.addEventListener('click', () => this.startCall());
+                this.endCallButton.addEventListener('click', () => this.endCall());
+                this.copyIdButton.addEventListener('click', () => this.copyUserId());
+                this.acceptCallButton.addEventListener('click', () => this.acceptCall());
+                this.rejectCallButton.addEventListener('click', () => this.rejectCall());
+            }
+
+            initSocket() {
+                this.socket.on('user-connected', (data) => {
+                    this.userId = data.userId;
+                    this.userIdElement.textContent = this.userId;
+                    this.updateOnlineUsers(data.onlineUsers);
+                });
+
+                this.socket.on('user-joined', (userId) => {
+                    this.addOnlineUser(userId);
+                });
+
+                this.socket.on('user-left', (userId) => {
+                    this.removeOnlineUser(userId);
+                });
+
+                this.socket.on('incoming-call', (data) => {
+                    this.showIncomingCall(data);
+                });
+
+                this.socket.on('call-accepted', (data) => {
+                    this.handleCallAccepted(data);
+                });
+
+                this.socket.on('call-rejected', (data) => {
+                    alert('❌ کاربر مقابل تماس را رد کرد');
+                    this.resetCallUI();
+                });
+
+                this.socket.on('call-ended', (data) => {
+                    this.handleCallEnded(data);
+                });
+
+                this.socket.on('ice-candidate', (data) => {
+                    this.handleIceCandidate(data);
+                });
+            }
+
+            async requestMicrophone() {
+                try {
+                    this.localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            channelCount: 1,
+                            sampleRate: 44100,
+                            sampleSize: 16
+                        },
+                        video: false
+                    });
+                    console.log('✅ میکروفون فعال شد');
+                    this.updateStatus('🟢 آماده برای تماس', 'ready');
+                } catch (error) {
+                    console.error('❌ خطا در دسترسی به میکروفون:', error);
+                    this.updateStatus('❌ دسترسی به میکروفون داده نشد', 'ready');
+                    alert('لطفاً دسترسی به میکروفون را允许 کنید. برای تماس صوتی ضروری است.');
+                }
+            }
+
+            createPeerConnection() {
+                const configuration = {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
+                    ]
+                };
+
+                this.peerConnection = new RTCPeerConnection(configuration);
+
+                this.localStream.getTracks().forEach(track => {
+                    this.peerConnection.addTrack(track, this.localStream);
+                });
+
+                this.peerConnection.ontrack = (event) => {
+                    console.log('🎵 دریافت صدا از کاربر مقابل');
+                    this.remoteStream = event.streams[0];
+                    this.remoteAudio.srcObject = this.remoteStream;
+                    this.remoteAudio.style.display = 'block';
+                };
+
+                this.peerConnection.onicecandidate = (event) => {
+                    if (event.candidate && this.currentCall) {
+                        this.socket.emit('ice-candidate', {
+                            targetUser: this.currentCall,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+
+                this.peerConnection.onconnectionstatechange = () => {
+                    const state = this.peerConnection.connectionState;
+                    console.log('🔗 وضعیت اتصال:', state);
+                    
+                    switch (state) {
+                        case 'connected':
+                            this.updateStatus('✅ تماس برقرار شد - حالا صحبت کنید', 'connected');
+                            this.isInCall = true;
+                            break;
+                        case 'disconnected':
+                        case 'failed':
+                            this.updateStatus('❌ اتصال قطع شد', 'ready');
+                            this.cleanupCall();
+                            break;
+                    }
+                };
+            }
+
+            async startCall() {
+                const targetUser = this.targetUserInput.value.trim();
+                const callerName = this.callerNameInput.value.trim() || 'کاربر';
+
+                if (!targetUser) {
+                    alert('لطفاً شناسه کاربر مقابل را وارد کنید');
+                    return;
+                }
+
+                if (!this.localStream) {
+                    alert('میکروفون در دسترس نیست. لطفاً دسترسی را允许 کنید.');
+                    return;
+                }
+
+                this.currentCall = targetUser;
+                this.createPeerConnection();
+
+                try {
+                    const offer = await this.peerConnection.createOffer();
+                    await this.peerConnection.setLocalDescription(offer);
+
+                    this.socket.emit('start-call', {
+                        targetUser: targetUser,
+                        offer: offer,
+                        callerName: callerName
+                    });
+
+                    this.updateStatus('📞 در حال برقراری تماس...', 'calling');
+                    this.startCallButton.disabled = true;
+                    this.endCallButton.disabled = false;
+
+                } catch (error) {
+                    console.error('❌ خطا در شروع تماس:', error);
+                    this.cleanupCall();
+                }
+            }
+
+            showIncomingCall(data) {
+                this.callerInfoElement.textContent = `از: ${data.callerName} (${data.from})`;
+                this.currentCall = data.from;
+                this.pendingOffer = data.offer;
+                this.incomingCallElement.style.display = 'flex';
+            }
+
+            async acceptCall() {
+                if (!this.pendingOffer || !this.localStream) return;
+
+                this.createPeerConnection();
+                
+                try {
+                    await this.peerConnection.setRemoteDescription(this.pendingOffer);
+                    const answer = await this.peerConnection.createAnswer();
+                    await this.peerConnection.setLocalDescription(answer);
+
+                    this.socket.emit('accept-call', {
+                        targetUser: this.currentCall,
+                        answer: answer
+                    });
+
+                    this.updateStatus('🎧 در حال مکالمه...', 'connected');
+                    this.startCallButton.disabled = true;
+                    this.endCallButton.disabled = false;
+                    this.incomingCallElement.style.display = 'none';
+                    this.isInCall = true;
+
+                } catch (error) {
+                    console.error('❌ خطا در پذیرش تماس:', error);
+                    this.cleanupCall();
+                }
+            }
+
+            rejectCall() {
+                this.socket.emit('reject-call', { targetUser: this.currentCall });
+                this.incomingCallElement.style.display = 'none';
+                this.cleanupCall();
+            }
+
+            async handleCallAccepted(data) {
+                if (!this.peerConnection) return;
+
+                try {
+                    await this.peerConnection.setRemoteDescription(data.answer);
+                    this.updateStatus('🎧 در حال مکالمه...', 'connected');
+                    this.isInCall = true;
+                } catch (error) {
+                    console.error('❌ خطا در برقراری اتصال:', error);
+                    this.cleanupCall();
+                }
+            }
+
+            async handleIceCandidate(data) {
+                if (this.peerConnection && data.candidate) {
+                    try {
+                        await this.peerConnection.addIceCandidate(data.candidate);
+                    } catch (error) {
+                        console.error('❌ خطا در افزودن ICE candidate:', error);
+                    }
+                }
+            }
+
+            handleCallEnded(data) {
+                this.updateStatus('📞 تماس پایان یافت', 'ready');
+                this.cleanupCall();
+            }
+
+            endCall() {
+                if (this.currentCall) {
+                    this.socket.emit('end-call', { targetUser: this.currentCall });
+                }
+                this.updateStatus('📞 تماس پایان یافت', 'ready');
+                this.cleanupCall();
+            }
+
+            cleanupCall() {
+                if (this.peerConnection) {
+                    this.peerConnection.close();
+                    this.peerConnection = null;
+                }
+
+                if (this.remoteAudio.srcObject) {
+                    this.remoteAudio.srcObject = null;
+                    this.remoteAudio.style.display = 'none';
+                }
+
+                this.currentCall = null;
+                this.isInCall = false;
+                this.pendingOffer = null;
+                
+                this.startCallButton.disabled = false;
+                this.endCallButton.disabled = true;
+                this.incomingCallElement.style.display = 'none';
+            }
+
+            updateStatus(message, type) {
+                this.callStatusElement.textContent = message;
+                this.callStatusElement.className = `status status-${type}`;
+            }
+
+            copyUserId() {
+                if (!this.userId) return;
+                
+                navigator.clipboard.writeText(this.userId)
+                    .then(() => alert(`شناسه کپی شد: ${this.userId}`))
+                    .catch(() => {
+                        // Fallback برای مرورگرهای قدیمی
+                        const tempInput = document.createElement('input');
+                        tempInput.value = this.userId;
+                        document.body.appendChild(tempInput);
+                        tempInput.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempInput);
+                        alert(`شناسه کپی شد: ${this.userId}`);
+                    });
+            }
+
+            updateOnlineUsers(users) {
+                this.onlineUsersList.innerHTML = '';
+                
+                if (users.length === 0) {
+                    this.onlineUsersList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">هیچ کاربر آنلاینی وجود ندارد</div>';
+                    return;
+                }
+
+                this.onlineUsersSection.style.display = 'block';
+                users.forEach(userId => {
+                    this.addOnlineUser(userId);
+                });
+            }
+
+            addOnlineUser(userId) {
+                const userElement = document.createElement('div');
+                userElement.className = 'user-item';
+                userElement.innerHTML = `👤 ${userId}`;
+                userElement.onclick = () => {
+                    this.targetUserInput.value = userId;
+                };
+                this.onlineUsersList.appendChild(userElement);
+            }
+
+            removeOnlineUser(userId) {
+                const userElements = this.onlineUsersList.getElementsByClassName('user-item');
+                for (let element of userElements) {
+                    if (element.textContent.includes(userId)) {
+                        element.remove();
+                        break;
+                    }
+                }
+                
+                if (this.onlineUsersList.children.length === 0) {
+                    this.onlineUsersSection.style.display = 'none';
+                }
+            }
+        }
+
+        // راه‌اندازی برنامه
+        document.addEventListener('DOMContentLoaded', () => {
+            new VoiceChat();
+        });
+    </script>
 </body>
 </html>
