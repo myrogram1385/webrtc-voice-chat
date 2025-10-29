@@ -3,100 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تماس صوتی آنلاین | WebRTC</title>
+    <title>تماس صوتی دو کاربر</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <!-- هدر -->
         <header class="header">
-            <h1>🎧 تماس صوتی آنلاین</h1>
+            <h1>🎧 تماس صوتی دو کاربر</h1>
             <div class="user-info">
                 <span>شناسه شما: </span>
-                <strong id="userId">در حال اتصال...</strong>
+                <strong id="userId">...</strong>
+                <button id="copyId" class="btn btn-secondary">📋 کپی</button>
             </div>
         </header>
 
-        <!-- بخش کنترل تماس -->
-        <section class="call-section">
-            <div class="call-controls">
+        <!-- بخش اصلی -->
+        <main class="main-content">
+            <!-- کنترل‌های تماس -->
+            <section class="call-section">
                 <div class="input-group">
-                    <label for="targetUser">شناسه کاربر مقصد:</label>
-                    <input type="text" id="targetUser" placeholder="مثال: ABC123...">
+                    <label for="callerName">نام شما:</label>
+                    <input type="text" id="callerName" placeholder="مثلاً: علی" value="کاربر">
                 </div>
                 
                 <div class="input-group">
-                    <label for="username">نام شما (اختیاری):</label>
-                    <input type="text" id="username" placeholder="مثال: علی">
+                    <label for="targetUser">شناسه کاربر مقابل:</label>
+                    <input type="text" id="targetUser" placeholder="شناسه کاربر را وارد کنید">
                 </div>
-                
-                <div class="button-group">
-                    <button id="startCall" class="btn btn-success">
-                        📞 شروع تماس
-                    </button>
-                    <button id="endCall" class="btn btn-danger" disabled>
-                        ❌ پایان تماس
-                    </button>
-                    <button id="copyId" class="btn btn-secondary">
-                        📋 کپی شناسه
-                    </button>
-                </div>
-            </div>
 
-            <!-- وضعیت تماس -->
-            <div class="call-status">
-                <div id="callStatus" class="status-ready">
+                <div class="button-group">
+                    <button id="startCall" class="btn btn-call">📞 شروع تماس</button>
+                    <button id="endCall" class="btn btn-end" disabled>❌ پایان تماس</button>
+                </div>
+            </section>
+
+            <!-- وضعیت -->
+            <section class="status-section">
+                <div id="callStatus" class="status status-ready">
                     🟢 آماده برای تماس
                 </div>
-                <div id="incomingCallAlert" class="incoming-call-alert" style="display: none;">
-                    <div class="alert-content">
+                
+                <!-- هشدار تماس دریافتی -->
+                <div id="incomingCall" class="incoming-call" style="display: none;">
+                    <div class="call-alert">
                         <h3>📞 تماس دریافتی</h3>
-                        <p id="callerInfo">از کاربر: </p>
+                        <p id="callerInfo">از: </p>
                         <div class="alert-buttons">
-                            <button id="acceptCall" class="btn btn-success">پذیرش</button>
-                            <button id="rejectCall" class="btn btn-danger">رد</button>
+                            <button id="acceptCall" class="btn btn-success">✅ پذیرش</button>
+                            <button id="rejectCall" class="btn btn-danger">❌ رد</button>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <!-- کاربران آنلاین -->
+            <section class="users-section">
+                <h3>👥 کاربران آنلاین:</h3>
+                <div id="onlineUsers" class="users-list">
+                    <div class="empty-state">در حال دریافت لیست...</div>
+                </div>
+            </section>
 
             <!-- پلیر صدا -->
-            <div class="audio-container">
+            <section class="audio-section">
                 <audio id="remoteAudio" autoplay controls style="display: none;"></audio>
-                <div id="audioVisualizer" class="audio-visualizer">
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
+                <div class="audio-visualizer">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
                 </div>
-            </div>
-        </section>
-
-        <!-- لیست کاربران آنلاین -->
-        <section class="users-section">
-            <h3>👥 کاربران آنلاین:</h3>
-            <div id="onlineUsers" class="users-list">
-                <div class="loading">در حال دریافت لیست کاربران...</div>
-            </div>
-        </section>
-
-        <!-- راهنما -->
-        <section class="help-section">
-            <details>
-                <summary>📖 راهنمای استفاده</summary>
-                <div class="help-content">
-                    <p>1. شناسه خود را کپی کرده و برای دوستتان بفرستید</p>
-                    <p>2. شناسه دوستتان را در فیلد مربوطه وارد کنید</p>
-                    <p>3. دکمه "شروع تماس" را بزنید</p>
-                    <p>4. وقتی تماس دریافت کردید، "پذیرش" را بزنید</p>
-                    <p>5. برای قطع تماس از دکمه "پایان تماس" استفاده کنید</p>
-                </div>
-            </details>
-        </section>
+            </section>
+        </main>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
-              </html>
+</html>
