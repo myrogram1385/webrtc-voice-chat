@@ -1,38 +1,35 @@
-class VoiceCallApp {
+class VoiceChatApp {
     constructor() {
         this.socket = io();
         this.localStream = null;
         this.remoteStream = null;
         this.peerConnection = null;
         this.currentCall = null;
-        this.isInitiator = false;
+        this.isInCall = false;
         
-        this.initializeApp();
+        this.init();
     }
 
-    initializeApp() {
-        this.initializeElements();
-        this.initializeSocket();
-        this.initializeMedia();
+    init() {
+        this.initElements();
+        this.initSocket();
+        this.initMedia();
     }
 
-    initializeElements() {
-        // عناصر HTML
+    initElements() {
         this.userIdElement = document.getElementById('userId');
         this.targetUserInput = document.getElementById('targetUser');
-        this.usernameInput = document.getElementById('username');
+        this.callerNameInput = document.getElementById('callerName');
         this.startCallButton = document.getElementById('startCall');
         this.endCallButton = document.getElementById('endCall');
         this.copyIdButton = document.getElementById('copyId');
         this.callStatusElement = document.getElementById('callStatus');
-        this.remoteAudio = document.getElementById('remoteAudio');
         this.onlineUsersList = document.getElementById('onlineUsers');
-        this.incomingCallAlert = document.getElementById('incomingCallAlert');
-        this.callerInfoElement = document.getElementById('callerInfo');
+        this.incomingCallElement = document.getElementById('incomingCall');
         this.acceptCallButton = document.getElementById('acceptCall');
         this.rejectCallButton = document.getElementById('rejectCall');
+        this.remoteAudio = document.getElementById('remoteAudio');
 
-        // event listeners
         this.startCallButton.addEventListener('click', () => this.startCall());
         this.endCallButton.addEventListener('click', () => this.endCall());
         this.copyIdButton.addEventListener('click', () => this.copyUserId());
@@ -40,48 +37,45 @@ class VoiceCallApp {
         this.rejectCallButton.addEventListener('click', () => this.rejectCall());
     }
 
-    initializeSocket() {
-        // دریافت شناسه کاربر
-        this.socket.on('user-id', (userId) => {
-            this.userId = userId;
-            this.userIdElement.textContent = userId;
-            this.updateUserList();
+    initSocket() {
+        this.socket.on('user-connected', (data) => {
+            this.userId = data.userId;
+            this.userIdElement.textContent = this.userId;
+            this.updateOnlineUsers(data.onlineUsers);
         });
 
-        // تماس دریافتی
+        this.socket.on('user-joined', (userId) => {
+            this.addOnlineUser(userId);
+        });
+
+        this.socket.on('user-left', (userId) => {
+            this.removeOnlineUser(userId);
+        });
+
         this.socket.on('incoming-call', (data) => {
-            this.handleIncomingCall(data);
+            this.showIncomingCall(data);
         });
 
-        // تماس پذیرفته شد
         this.socket.on('call-accepted', (data) => {
             this.handleCallAccepted(data);
         });
 
-        // دریافت ICE candidate
-        this.socket.on('ice-candidate', (data) => {
-            this.handleIceCandidate(data);
+        this.socket.on('call-rejected', (data) => {
+            alert('❌ کاربر مقابل تماس را رد کرد');
+            this.resetCallUI();
         });
 
-        // تماس پایان یافت
         this.socket.on('call-ended', (data) => {
             this.handleCallEnded(data);
         });
 
-        // کاربر جدید متصل شد
-        this.socket.on('user-connected', (userId) => {
-            this.addOnlineUser(userId);
-        });
-
-        // کاربر قطع شد
-        this.socket.on('user-disconnected', (userId) => {
-            this.removeOnlineUser(userId);
+        this.socket.on('ice-candidate', (data) => {
+            this.handleIceCandidate(data);
         });
     }
 
-    async initializeMedia() {
+    async initMedia() {
         try {
-            // درخواست دسترسی به میکروفون
             this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
@@ -90,24 +84,18 @@ class VoiceCallApp {
                 },
                 video: false
             });
-            
-            console.log('✅ دسترسی به میکروفون با موفقیت انجام شد');
-            this.updateStatus('آماده برای تماس', 'ready');
-            
+            console.log('✅ میکروفون آماده است');
         } catch (error) {
             console.error('❌ خطا در دسترسی به میکروفون:', error);
-            this.updateStatus('خطا در دسترسی به میکروفون', 'error');
-            alert('لطفاً دسترسی به میکروفون را允许 کنید تا بتوانید از تماس صوتی استفاده نمایید.');
+            alert('لطفاً دسترسی به میکروفون را允许 کنید');
         }
     }
 
     createPeerConnection() {
-        // پیکربندی ICE servers
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' }
             ]
         };
 
@@ -120,7 +108,7 @@ class VoiceCallApp {
 
         // دریافت stream远端
         this.peerConnection.ontrack = (event) => {
-            console.log('🎵 دریافت stream صوتی از کاربر مقابل');
+            console.log('🎵 دریافت صدا از کاربر مقابل');
             this.remoteStream = event.streams[0];
             this.remoteAudio.srcObject = this.remoteStream;
             this.remoteAudio.style.display = 'block';
@@ -130,7 +118,7 @@ class VoiceCallApp {
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate && this.currentCall) {
                 this.socket.emit('ice-candidate', {
-                    to: this.currentCall,
+                    targetUser: this.currentCall,
                     candidate: event.candidate
                 });
             }
@@ -143,12 +131,13 @@ class VoiceCallApp {
             
             switch (state) {
                 case 'connected':
-                    this.updateStatus('تماس برقرار شد 🎉', 'connected');
+                    this.updateStatus('✅ تماس برقرار شد', 'connected');
+                    this.isInCall = true;
                     break;
                 case 'disconnected':
                 case 'failed':
-                    this.updateStatus('اتصال قطع شد', 'error');
-                    setTimeout(() => this.cleanupCall(), 2000);
+                    this.updateStatus('❌ اتصال قطع شد', 'ready');
+                    this.cleanupCall();
                     break;
             }
         };
@@ -156,98 +145,78 @@ class VoiceCallApp {
 
     async startCall() {
         const targetUser = this.targetUserInput.value.trim();
-        const username = this.usernameInput.value.trim() || 'کاربر ناشناس';
+        const callerName = this.callerNameInput.value.trim() || 'کاربر';
 
         if (!targetUser) {
-            alert('لطفاً شناسه کاربر مورد نظر را وارد کنید');
+            alert('لطفاً شناسه کاربر مقابل را وارد کنید');
             return;
         }
 
         if (!this.localStream) {
-            alert('میکروفون در دسترس نیست. لطفاً دسترسی را允许 کنید.');
+            alert('میکروفون در دسترس نیست');
             return;
         }
 
         this.currentCall = targetUser;
-        this.isInitiator = true;
         this.createPeerConnection();
 
         try {
-            // ایجاد offer
             const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
 
-            // ارسال درخواست تماس
-            this.socket.emit('call-user', {
-                to: targetUser,
+            this.socket.emit('start-call', {
+                targetUser: targetUser,
                 offer: offer,
-                username: username
+                callerName: callerName
             });
 
-            this.updateStatus('در حال برقراری تماس...', 'calling');
+            this.updateStatus('📞 در حال برقراری تماس...', 'calling');
             this.startCallButton.disabled = true;
             this.endCallButton.disabled = false;
 
         } catch (error) {
-            console.error('❌ خطا در ایجاد تماس:', error);
-            alert('خطا در برقراری تماس');
+            console.error('❌ خطا در شروع تماس:', error);
             this.cleanupCall();
         }
     }
 
-    async handleIncomingCall(data) {
-        console.log('📞 تماس دریافتی از:', data.from);
-        
-        // نمایش هشدار تماس دریافتی
-        this.callerInfoElement.textContent = `از: ${data.username} (${data.from})`;
-        this.incomingCallAlert.style.display = 'block';
+    showIncomingCall(data) {
+        document.getElementById('callerInfo').textContent = `از: ${data.callerName} (${data.from})`;
         this.currentCall = data.from;
-        
-        // ذخیره offer برای استفاده بعدی
         this.pendingOffer = data.offer;
+        this.incomingCallElement.style.display = 'flex';
     }
 
     async acceptCall() {
-        if (!this.pendingOffer || !this.currentCall) {
-            alert('خطا در پذیرش تماس');
-            return;
-        }
+        if (!this.pendingOffer) return;
 
-        this.isInitiator = false;
         this.createPeerConnection();
-
+        
         try {
-            // تنظیم remote description با offer دریافتی
             await this.peerConnection.setRemoteDescription(this.pendingOffer);
-            
-            // ایجاد answer
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
 
-            // ارسال پاسخ
             this.socket.emit('accept-call', {
-                to: this.currentCall,
+                targetUser: this.currentCall,
                 answer: answer
             });
 
-            this.updateStatus('در حال مکالمه...', 'connected');
+            this.updateStatus('🎧 در حال مکالمه...', 'connected');
             this.startCallButton.disabled = true;
             this.endCallButton.disabled = false;
-            this.incomingCallAlert.style.display = 'none';
+            this.incomingCallElement.style.display = 'none';
+            this.isInCall = true;
 
         } catch (error) {
             console.error('❌ خطا در پذیرش تماس:', error);
-            alert('خطا در پذیرش تماس');
             this.cleanupCall();
         }
     }
 
     rejectCall() {
-        this.socket.emit('end-call', {
-            to: this.currentCall,
-            reason: 'تماس رد شد'
-        });
-        this.incomingCallAlert.style.display = 'none';
+        this.socket.emit('reject-call', { targetUser: this.currentCall });
+        this.incomingCallElement.style.display = 'none';
         this.cleanupCall();
     }
 
@@ -256,8 +225,8 @@ class VoiceCallApp {
 
         try {
             await this.peerConnection.setRemoteDescription(data.answer);
-            this.updateStatus('در حال مکالمه...', 'connected');
-            
+            this.updateStatus('🎧 در حال مکالمه...', 'connected');
+            this.isInCall = true;
         } catch (error) {
             console.error('❌ خطا در برقراری اتصال:', error);
             this.cleanupCall();
@@ -275,109 +244,86 @@ class VoiceCallApp {
     }
 
     handleCallEnded(data) {
-        console.log('📞 تماس پایان یافت:', data?.reason);
-        this.updateStatus(`تماس پایان یافت - ${data?.reason || 'توسط کاربر مقابل'}`, 'error');
+        this.updateStatus('📞 تماس پایان یافت', 'ready');
         this.cleanupCall();
-        
-        setTimeout(() => {
-            this.updateStatus('آماده برای تماس', 'ready');
-        }, 3000);
     }
 
     endCall() {
         if (this.currentCall) {
-            this.socket.emit('end-call', {
-                to: this.currentCall,
-                reason: 'تماس توسط شما پایان یافت'
-            });
+            this.socket.emit('end-call', { targetUser: this.currentCall });
         }
-        this.updateStatus('تماس پایان یافت', 'error');
+        this.updateStatus('📞 تماس پایان یافت', 'ready');
         this.cleanupCall();
-        
-        setTimeout(() => {
-            this.updateStatus('آماده برای تماس', 'ready');
-        }, 2000);
     }
 
     cleanupCall() {
-        // بستن اتصال peer
         if (this.peerConnection) {
             this.peerConnection.close();
             this.peerConnection = null;
         }
-        
-        // پاک کردن stream远端
+
         if (this.remoteAudio.srcObject) {
             this.remoteAudio.srcObject = null;
             this.remoteAudio.style.display = 'none';
         }
 
-        // ریست کردن متغیرها
         this.currentCall = null;
-        this.isInitiator = false;
+        this.isInCall = false;
         this.pendingOffer = null;
         
-        // فعال/غیرفعال کردن دکمه‌ها
         this.startCallButton.disabled = false;
         this.endCallButton.disabled = true;
-        this.incomingCallAlert.style.display = 'none';
+        this.incomingCallElement.style.display = 'none';
     }
 
-    updateStatus(message, type = 'ready') {
+    updateStatus(message, type) {
         this.callStatusElement.textContent = message;
-        this.callStatusElement.className = `status-${type}`;
-        
-        // لاگ در کنسول
-        console.log(`📢 وضعیت: ${message}`);
+        this.callStatusElement.className = `status status-${type}`;
     }
 
     copyUserId() {
-        if (!this.userId) {
-            alert('هنوز به سرور متصل نشده‌اید');
+        if (!this.userId) return;
+        
+        navigator.clipboard.writeText(this.userId)
+            .then(() => alert(`شناسه کپی شد: ${this.userId}`))
+            .catch(() => alert('خطا در کپی کردن'));
+    }
+
+    updateOnlineUsers(users) {
+        this.onlineUsersList.innerHTML = '';
+        
+        if (users.length === 0) {
+            this.onlineUsersList.innerHTML = '<div class="empty-state">هیچ کاربر آنلاینی وجود ندارد</div>';
             return;
         }
 
-        navigator.clipboard.writeText(this.userId)
-            .then(() => {
-                alert(`شناسه شما کپی شد: ${this.userId}`);
-            })
-            .catch(err => {
-                console.error('خطا در کپی کردن:', err);
-                alert('خطا در کپی کردن شناسه');
-            });
+        users.forEach(userId => {
+            this.addOnlineUser(userId);
+        });
     }
 
     addOnlineUser(userId) {
-        if (userId === this.userId) return;
-
         const userElement = document.createElement('div');
         userElement.className = 'user-item';
-        userElement.textContent = `${userId}`;
+        userElement.textContent = `👤 ${userId}`;
         userElement.onclick = () => {
             this.targetUserInput.value = userId;
         };
-
         this.onlineUsersList.appendChild(userElement);
     }
 
     removeOnlineUser(userId) {
         const userElements = this.onlineUsersList.getElementsByClassName('user-item');
         for (let element of userElements) {
-            if (element.textContent === userId) {
+            if (element.textContent.includes(userId)) {
                 element.remove();
                 break;
             }
         }
     }
-
-    updateUserList() {
-        // این تابع می‌تواند برای به‌روزرسانی لیست کاربران گسترش یابد
-        console.log('لیست کاربران به‌روزرسانی شد');
-    }
 }
 
-// راه‌اندازی برنامه وقتی DOM کاملاً load شد
+// راه‌اندازی برنامه
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 راه‌اندازی برنامه تماس صوتی...');
-    window.voiceApp = new VoiceCallApp();
+    new VoiceChatApp();
 });
