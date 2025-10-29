@@ -2,50 +2,71 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
 
-// Middleware برای سرو فایل‌های استاتیک
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Route اصلی
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/index.html'));
+// تنظیمات CORS برای اجازه دسترسی از همه IPها
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
 });
 
-// مدیریت WebSocket connections
+// سرو فایل‌های استاتیک
+app.use(express.static(path.join(__dirname, '../public')));
+
+// ذخیره کاربران آنلاین
+const onlineUsers = new Map();
+
 io.on('connection', (socket) => {
-    console.log('✅ کاربر متصل شد:', socket.id);
+    console.log('🎯 کاربر جدید متصل شد:', socket.id);
     
-    // ارسال شناسه کاربر به خودش
-    socket.emit('user-id', socket.id);
+    // اضافه کردن کاربر به لیست آنلاین
+    onlineUsers.set(socket.id, {
+        id: socket.id,
+        connectedAt: new Date()
+    });
     
-    // اطلاع‌رسانی به سایر کاربران
-    socket.broadcast.emit('user-connected', socket.id);
+    // ارسال شناسه به کاربر
+    socket.emit('user-connected', {
+        userId: socket.id,
+        onlineUsers: Array.from(onlineUsers.keys()).filter(id => id !== socket.id)
+    });
     
-    // وقتی کاربر تماس را شروع می‌کند
-    socket.on('call-user', (data) => {
-        console.log('📞 تماس از:', socket.id, 'به:', data.to);
-        socket.to(data.to).emit('incoming-call', {
+    // اطلاع به سایر کاربران
+    socket.broadcast.emit('user-joined', socket.id);
+    
+    // شروع تماس
+    socket.on('start-call', (data) => {
+        console.log('📞 درخواست تماس از:', socket.id, 'به:', data.targetUser);
+        socket.to(data.targetUser).emit('incoming-call', {
             from: socket.id,
             offer: data.offer,
-            username: data.username || 'کاربر ناشناس'
+            callerName: data.callerName || 'کاربر ناشناس'
         });
     });
     
-    // وقتی کاربر تماس را می‌پذیرد
+    // پذیرش تماس
     socket.on('accept-call', (data) => {
         console.log('✅ تماس پذیرفته شد توسط:', socket.id);
-        socket.to(data.to).emit('call-accepted', {
+        socket.to(data.targetUser).emit('call-accepted', {
             from: socket.id,
             answer: data.answer
         });
     });
     
-    // ارسال ICE Candidate
+    // رد تماس
+    socket.on('reject-call', (data) => {
+        socket.to(data.targetUser).emit('call-rejected', {
+            from: socket.id
+        });
+    });
+    
+    // ارسال ICE candidates
     socket.on('ice-candidate', (data) => {
-        socket.to(data.to).emit('ice-candidate', {
+        socket.to(data.targetUser).emit('ice-candidate', {
             from: socket.id,
             candidate: data.candidate
         });
@@ -53,23 +74,39 @@ io.on('connection', (socket) => {
     
     // پایان تماس
     socket.on('end-call', (data) => {
-        console.log('❌ تماس پایان یافت:', socket.id);
-        socket.to(data.to).emit('call-ended', {
+        console.log('❌ پایان تماس توسط:', socket.id);
+        if (data.targetUser) {
+            socket.to(data.targetUser).emit('call-ended', {
+                from: socket.id,
+                reason: 'تماس توسط کاربر مقابل پایان یافت'
+            });
+        }
+    });
+    
+    // ارسال پیام چت
+    socket.on('send-message', (data) => {
+        socket.to(data.targetUser).emit('new-message', {
             from: socket.id,
-            reason: data.reason || 'تماس به پایان رسید'
+            message: data.message,
+            timestamp: new Date()
         });
     });
     
     // وقتی کاربر قطع می‌شود
     socket.on('disconnect', () => {
         console.log('🔌 کاربر قطع شد:', socket.id);
-        socket.broadcast.emit('user-disconnected', socket.id);
+        onlineUsers.delete(socket.id);
+        socket.broadcast.emit('user-left', socket.id);
     });
 });
 
-// راه‌اندازی سرور
+// اجرای سرور روی همه IPها
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🎉 سرور تماس صوتی روی پورت ${PORT} اجرا شد`);
-    console.log(`🌐 آدرس: http://localhost:${PORT}`);
+const HOST = '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+    console.log('🎉 سرور تماس صوتی اجرا شد!');
+    console.log(`📍 آدرس محلی: http://localhost:${PORT}`);
+    console.log(`🌐 آدرس شبکه: http://YOUR-IP:${PORT}`);
+    console.log('📱 از دو گوشی مختلف به آدرس بالا وصل شوید');
 });
