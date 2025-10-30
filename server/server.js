@@ -15,60 +15,68 @@ const io = socketIo(server, {
 
 app.use(express.static(path.join(__dirname, '../public')));
 
-const users = new Map();
+const onlineUsers = new Map();
 
 io.on('connection', (socket) => {
-  console.log('✅ کاربر متصل شد:', socket.id);
+  console.log('👤 کاربر جدید متصل شد:', socket.id);
   
-  users.set(socket.id, { id: socket.id });
-  
-  socket.emit('user-connected', {
-    userId: socket.id,
-    onlineUsers: Array.from(users.keys()).filter(id => id !== socket.id)
+  onlineUsers.set(socket.id, {
+    id: socket.id,
+    name: `User_${socket.id.substring(0, 6)}`,
+    joinedAt: new Date()
   });
   
-  socket.broadcast.emit('user-joined', socket.id);
+  socket.emit('connection-established', {
+    userId: socket.id,
+    userList: Array.from(onlineUsers.values()).filter(user => user.id !== socket.id)
+  });
   
-  socket.on('start-call', (data) => {
-    console.log('📞 تماس از', socket.id, 'به', data.targetUser);
-    socket.to(data.targetUser).emit('incoming-call', {
-      from: socket.id,
-      offer: data.offer,
-      callerName: data.callerName || 'کاربر'
+  socket.broadcast.emit('user-online', {
+    id: socket.id,
+    name: `User_${socket.id.substring(0, 6)}`
+  });
+  
+  socket.on('initiate-call', (data) => {
+    console.log('📞 درخواست تماس از', socket.id, 'به', data.targetUserId);
+    socket.to(data.targetUserId).emit('incoming-call', {
+      callerId: socket.id,
+      callerName: data.callerName || `User_${socket.id.substring(0, 6)}`,
+      offer: data.offer
     });
   });
   
   socket.on('accept-call', (data) => {
     console.log('✅ تماس پذیرفته شد توسط:', socket.id);
-    socket.to(data.targetUser).emit('call-accepted', {
-      from: socket.id,
+    socket.to(data.callerId).emit('call-accepted', {
       answer: data.answer
     });
   });
   
   socket.on('reject-call', (data) => {
-    socket.to(data.targetUser).emit('call-rejected', { from: socket.id });
-  });
-  
-  socket.on('ice-candidate', (data) => {
-    socket.to(data.targetUser).emit('ice-candidate', {
-      from: socket.id,
-      candidate: data.candidate
-    });
+    socket.to(data.callerId).emit('call-rejected');
   });
   
   socket.on('end-call', (data) => {
-    socket.to(data.targetUser).emit('call-ended', { from: socket.id });
+    if (data.targetUserId) {
+      socket.to(data.targetUserId).emit('call-ended');
+    }
+  });
+  
+  socket.on('ice-candidate', (data) => {
+    socket.to(data.targetUserId).emit('ice-candidate', data.candidate);
   });
   
   socket.on('disconnect', () => {
     console.log('🔌 کاربر قطع شد:', socket.id);
-    users.delete(socket.id);
-    socket.broadcast.emit('user-left', socket.id);
+    onlineUsers.delete(socket.id);
+    socket.broadcast.emit('user-offline', socket.id);
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🎉 سرور اجرا شد: http://localhost:${PORT}`);
+  console.log('🚀 سرور تلگرام صوتی اجرا شد!');
+  console.log('📍 آدرس محلی: http://localhost:' + PORT);
+  console.log('🌐 برای اتصال از گوشی دیگر: http://YOUR-IP:' + PORT);
+  console.log('📱 هر دو کاربر باید به یک WiFi متصل باشند');
 });
